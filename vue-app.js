@@ -28,11 +28,13 @@ createApp({
     this.loadLocalData();
 
     // 从服务器获取最新数据
-    this.fetchData();
+    this.fetchDailyData();
+    this.fetchBlogData();
 
     // 设置定期同步（每5分钟）
     setInterval(() => {
-      this.fetchData();
+      this.fetchDailyData();
+      this.fetchBlogData();
     }, 300000);
   },
 
@@ -56,10 +58,10 @@ createApp({
       localStorage.setItem('blogPosts', JSON.stringify(this.blogPosts));
     },
 
-    // 从服务器获取数据
-    async fetchData() {
+    // 从服务器获取日常记录数据
+    async fetchDailyData() {
       try {
-        const response = await fetch('http://localhost:3000/api/data');
+        const response = await fetch('http://localhost:3000/api/daily');
         const data = await response.json();
 
         // 更新日常记录
@@ -67,17 +69,24 @@ createApp({
           this.entries = data.dailyEntries;
           this.saveLocalData();
         }
+      } catch (error) {
+        console.error('获取日常记录数据失败:', error);
+      }
+    },
+
+    // 从服务器获取博客数据
+    async fetchBlogData() {
+      try {
+        const response = await fetch('http://localhost:3000/api/blog');
+        const data = await response.json();
 
         // 更新博客文章
-        if (data.blogPosts && data.blogPosts.length > this.blogPosts.length) {
-          this.blogPosts = data.blogPosts;
+        if (data.posts && data.posts.length > this.blogPosts.length) {
+          this.blogPosts = data.posts;
           this.saveLocalData();
         }
-
-        // 更新通用数据
-        this.localData = data;
       } catch (error) {
-        console.error('获取服务器数据失败:', error);
+        console.error('获取博客数据失败:', error);
       }
     },
 
