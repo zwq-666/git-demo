@@ -15,11 +15,12 @@ createApp({
         content: ''
       },
 
-      // 通用数据
-      localData: {
-        dailyEntries: [],
-        blogPosts: []
-      }
+      // WebSocket相关
+      ws: null,
+      wsConnected: false,
+      wsReconnectAttempts: 0,
+      maxReconnectAttempts: 10,
+      wsReconnectDelay: 2000
     };
   },
 
@@ -31,11 +32,15 @@ createApp({
     this.fetchDailyData();
     this.fetchBlogData();
 
-    // 设置定期同步（每5分钟）
-    setInterval(() => {
-      this.fetchDailyData();
-      this.fetchBlogData();
-    }, 300000);
+    // 建立WebSocket连接
+    this.connectWebSocket();
+  },
+
+  beforeUnmount() {
+    // 组件卸载时关闭WebSocket
+    if (this.ws) {
+      this.ws.close();
+    }
   },
 
   methods: {
@@ -58,14 +63,88 @@ createApp({
       localStorage.setItem('blogPosts', JSON.stringify(this.blogPosts));
     },
 
+    // 建立WebSocket连接
+    connectWebSocket() {
+      try {
+        const wsUrl = getWebSocketUrl();
+        console.log('正在连接WebSocket:', wsUrl);
+
+        this.ws = new WebSocket(wsUrl);
+
+        this.ws.onopen = () => {
+          console.log('WebSocket连接已建立');
+          this.wsConnected = true;
+          this.wsReconnectAttempts = 0;
+        };
+
+        this.ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            this.handleWebSocketMessage(message);
+          } catch (error) {
+            console.error('解析WebSocket消息失败:', error);
+          }
+        };
+
+        this.ws.onclose = () => {
+          console.log('WebSocket连接已关闭');
+          this.wsConnected = false;
+          this.attemptReconnect();
+        };
+
+        this.ws.onerror = (error) => {
+          console.error('WebSocket错误:', error);
+          this.wsConnected = false;
+        };
+      } catch (error) {
+        console.error('建立WebSocket连接失败:', error);
+        this.attemptReconnect();
+      }
+    },
+
+    // 处理WebSocket消息
+    handleWebSocketMessage(message) {
+      if (message.type === 'daily' && message.data) {
+        this.entries = message.data;
+        this.saveLocalData();
+      } else if (message.type === 'blog' && message.data) {
+        this.blogPosts = message.data;
+        this.saveLocalData();
+      }
+    },
+
+    // 尝试重连
+    attemptReconnect() {
+      if (this.wsReconnectAttempts < this.maxReconnectAttempts) {
+        this.wsReconnectAttempts++;
+        console.log(`尝试重新连接 WebSocket (${this.wsReconnectAttempts}/${this.maxReconnectAttempts})...`);
+
+        setTimeout(() => {
+          this.connectWebSocket();
+        }, this.wsReconnectDelay);
+      } else {
+        console.error('WebSocket重连次数已达上限，切换到轮询模式');
+        // 回退到轮询模式
+        this.startPollingFallback();
+      }
+    },
+
+    // 备用轮询模式（WebSocket失败时使用）
+    startPollingFallback() {
+      setInterval(() => {
+        this.fetchDailyData();
+        this.fetchBlogData();
+      }, 30000);
+    },
+
     // 从服务器获取日常记录数据
     async fetchDailyData() {
       try {
-        const response = await fetch('http://localhost:3000/api/daily');
+        const apiUrl = getDailyApiUrl();
+        const response = await fetch(apiUrl);
         const data = await response.json();
 
-        // 更新日常记录
-        if (data.dailyEntries && data.dailyEntries.length > this.entries.length) {
+        if (data.dailyEntries && Array.isArray(data.dailyEntries)) {
           this.entries = data.dailyEntries;
           this.saveLocalData();
         }
@@ -77,11 +156,11 @@ createApp({
     // 从服务器获取博客数据
     async fetchBlogData() {
       try {
-        const response = await fetch('http://localhost:3000/api/blog');
+        const apiUrl = getBlogApiUrl();
+        const response = await fetch(apiUrl);
         const data = await response.json();
 
-        // 更新博客文章
-        if (data.posts && data.posts.length > this.blogPosts.length) {
+        if (data.posts && Array.isArray(data.posts)) {
           this.blogPosts = data.posts;
           this.saveLocalData();
         }
@@ -95,6 +174,7 @@ createApp({
       if (!this.newEntry.trim()) return;
 
       try {
+        const apiUrl = getDailyApiUrl();
         // 创建新记录
         const entry = {
           id: Date.now(),
@@ -108,7 +188,7 @@ createApp({
         this.saveLocalData();
 
         // 同步到服务器
-        await fetch('http://localhost:3000/api/daily', {
+        await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -126,6 +206,7 @@ createApp({
       if (!this.newBlog.title.trim() || !this.newBlog.content.trim()) return;
 
       try {
+        const apiUrl = getBlogApiUrl();
         // 创建新博客
         const post = {
           id: Date.now(),
@@ -142,7 +223,7 @@ createApp({
         this.saveLocalData();
 
         // 同步到服务器
-        await fetch('http://localhost:3000/api/blog', {
+        await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
