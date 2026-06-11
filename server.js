@@ -125,6 +125,54 @@ app.post('/api/blog', (req, res) => {
   }
 });
 
+// 删除日常记录
+app.delete('/api/daily/:id', (req, res) => {
+  try {
+    const dataPath = path.join(dataDir, 'daily.json');
+    let entries = [];
+
+    if (fs.existsSync(dataPath)) {
+      const data = fs.readFileSync(dataPath, 'utf8');
+      entries = JSON.parse(data);
+    }
+
+    const entryId = Number(req.params.id);
+    entries = entries.filter(e => e.id !== entryId);
+
+    fs.writeFileSync(dataPath, JSON.stringify(entries, null, 2));
+    broadcast({ type: 'daily', data: entries });
+
+    res.json({ success: true, message: '日常记录已删除' });
+  } catch (error) {
+    console.error('删除日常记录时出错:', error);
+    res.status(500).json({ error: '无法删除日常记录' });
+  }
+});
+
+// 删除博客文章
+app.delete('/api/blog/:id', (req, res) => {
+  try {
+    const dataPath = path.join(dataDir, 'blog.json');
+    let posts = [];
+
+    if (fs.existsSync(dataPath)) {
+      const data = fs.readFileSync(dataPath, 'utf8');
+      posts = JSON.parse(data);
+    }
+
+    const postId = Number(req.params.id);
+    posts = posts.filter(p => p.id !== postId);
+
+    fs.writeFileSync(dataPath, JSON.stringify(posts, null, 2));
+    broadcast({ type: 'blog', data: posts });
+
+    res.json({ success: true, message: '博客文章已删除' });
+  } catch (error) {
+    console.error('删除博客文章时出错:', error);
+    res.status(500).json({ error: '无法删除博客文章' });
+  }
+});
+
 // 升级HTTP连接为WebSocket
 app.on('upgrade', (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (ws) => {

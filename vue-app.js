@@ -182,19 +182,24 @@ createApp({
           date: new Date().toLocaleDateString('zh-CN')
         };
 
-        // 更新本地数据
+        // 先更新本地数据（乐观更新）
         this.entries.unshift(entry);
         this.newEntry = '';
         this.saveLocalData();
 
         // 同步到服务器
-        await fetch(apiUrl, {
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ entries: this.entries })
         });
+
+        if (response.ok) {
+          // 添加成功后重新从服务器获取最新数据，确保一致性
+          await this.fetchDailyData();
+        }
       } catch (error) {
         console.error('添加日常记录失败:', error);
         this.newEntry = '';
@@ -214,7 +219,7 @@ createApp({
           date: new Date().toLocaleString('zh-CN')
         };
 
-        // 更新本地数据
+        // 先更新本地数据（乐观更新）
         this.blogPosts.unshift(post);
         this.newBlog = {
           title: '',
@@ -223,19 +228,72 @@ createApp({
         this.saveLocalData();
 
         // 同步到服务器
-        await fetch(apiUrl, {
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ posts: this.blogPosts })
         });
+
+        if (response.ok) {
+          // 添加成功后重新从服务器获取最新数据，确保一致性
+          await this.fetchBlogData();
+        }
       } catch (error) {
         console.error('添加博客文章失败:', error);
         this.newBlog = {
           title: '',
           content: ''
         };
+      }
+    },
+
+    // 删除日常记录
+    async deleteEntry(id) {
+      if (!confirm('确定要删除这条记录吗？')) return;
+
+      try {
+        const apiUrl = getDailyApiUrl();
+        // 先从本地移除（乐观更新）
+        this.entries = this.entries.filter(e => e.id !== id);
+        this.saveLocalData();
+
+        // 同步到服务器
+        const response = await fetch(`${apiUrl}/${id}`, {
+          method: 'DELETE'
+        });
+
+        if (response.ok) {
+          // 删除成功后重新从服务器获取最新数据
+          await this.fetchDailyData();
+        }
+      } catch (error) {
+        console.error('删除日常记录失败:', error);
+      }
+    },
+
+    // 删除博客文章
+    async deleteBlogPost(id) {
+      if (!confirm('确定要删除这篇博客吗？')) return;
+
+      try {
+        const apiUrl = getBlogApiUrl();
+        // 先从本地移除（乐观更新）
+        this.blogPosts = this.blogPosts.filter(p => p.id !== id);
+        this.saveLocalData();
+
+        // 同步到服务器
+        const response = await fetch(`${apiUrl}/${id}`, {
+          method: 'DELETE'
+        });
+
+        if (response.ok) {
+          // 删除成功后重新从服务器获取最新数据
+          await this.fetchBlogData();
+        }
+      } catch (error) {
+        console.error('删除博客文章失败:', error);
       }
     }
   }

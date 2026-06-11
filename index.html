@@ -26,8 +26,11 @@
       </form>
 
       <div class="entries" v-for="entry in entries" :key="entry.id">
-        <div class="entry-date">{{ entry.date }}</div>
-        <div class="entry-content">{{ entry.content }}</div>
+        <div class="entry-item">
+          <div class="entry-date">{{ entry.date }}</div>
+          <div class="entry-content">{{ entry.content }}</div>
+          <button class="delete-btn" @click="deleteEntry(entry.id)">删除</button>
+        </div>
       </div>
 
       <h2>我的博客</h2>
@@ -39,11 +42,14 @@
       </form>
 
       <div class="blog-entries" v-for="post in blogPosts" :key="post.id">
-        <div class="blog-header">
-          <h3>{{ post.title }}</h3>
-          <div class="blog-date">{{ post.date }}</div>
+        <div class="blog-item">
+          <div class="blog-header">
+            <h3>{{ post.title }}</h3>
+            <div class="blog-date">{{ post.date }}</div>
+          </div>
+          <div class="blog-content">{{ post.content }}</div>
+          <button class="delete-btn" @click="deleteBlogPost(post.id)">删除</button>
         </div>
-        <div class="blog-content">{{ post.content }}</div>
       </div>
     </div>
   </div>

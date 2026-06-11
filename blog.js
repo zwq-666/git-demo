@@ -1,18 +1,19 @@
 // Blog functionality for the Vue application
 class BlogManager {
   constructor() {
-    this.apiUrl = '/api';
+    this.apiUrl = '/api/blog';
     this.blogPosts = [];
   }
 
   // 获取所有博客文章
   async getBlogPosts() {
     try {
-      const response = await fetch(`${this.apiUrl}/blogs`);
+      const response = await fetch(this.apiUrl);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      this.blogPosts = await response.json();
+      const data = await response.json();
+      this.blogPosts = data.posts || [];
       return this.blogPosts;
     } catch (error) {
       console.error('Error fetching blog posts:', error);
@@ -23,24 +24,29 @@ class BlogManager {
   // 创建新博客文章
   async createBlogPost(title, content) {
     try {
-      const response = await fetch(`${this.apiUrl}/blogs`, {
+      // 先获取现有博客列表
+      const currentPosts = await this.getBlogPosts();
+      const newPost = {
+        id: Date.now(),
+        title: title,
+        content: content,
+        date: new Date().toLocaleString('zh-CN')
+      };
+      currentPosts.unshift(newPost);
+
+      const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          title: title,
-          content: content,
-          date: new Date().toISOString()
-        })
+        body: JSON.stringify({ posts: currentPosts })
       });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const newPost = await response.json();
-      this.blogPosts.unshift(newPost);
+      this.blogPosts = currentPosts;
       return newPost;
     } catch (error) {
       console.error('Error creating blog post:', error);
@@ -51,7 +57,7 @@ class BlogManager {
   // 删除博客文章
   async deleteBlogPost(id) {
     try {
-      const response = await fetch(`${this.apiUrl}/blogs/${id}`, {
+      const response = await fetch(`${this.apiUrl}/${id}`, {
         method: 'DELETE'
       });
       
@@ -70,28 +76,34 @@ class BlogManager {
   // 更新博客文章
   async updateBlogPost(id, title, content) {
     try {
-      const response = await fetch(`${this.apiUrl}/blogs/${id}`, {
-        method: 'PUT',
+      // 获取现有博客列表，更新指定文章后整体保存
+      const currentPosts = await this.getBlogPosts();
+      const index = currentPosts.findIndex(post => post.id === id);
+      if (index === -1) {
+        throw new Error('博客文章不存在');
+      }
+
+      currentPosts[index] = {
+        ...currentPosts[index],
+        title,
+        content,
+        date: new Date().toLocaleString('zh-CN')
+      };
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          title: title,
-          content: content,
-          date: new Date().toISOString()
-        })
+        body: JSON.stringify({ posts: currentPosts })
       });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const updatedPost = await response.json();
-      const index = this.blogPosts.findIndex(post => post.id === id);
-      if (index !== -1) {
-        this.blogPosts[index] = updatedPost;
-      }
-      return updatedPost;
+      this.blogPosts = currentPosts;
+      return currentPosts[index];
     } catch (error) {
       console.error('Error updating blog post:', error);
       throw error;
